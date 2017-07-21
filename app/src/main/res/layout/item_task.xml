@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:orientation="horizontal"
+    android:layout_width="fill_parent"
+    android:layout_height="match_parent">
+
+    <TextView
+        android:layout_width="100dp"
+        android:layout_height="wrap_content"
+        android:padding="5dp"
+        android:text="Left"
+        android:textSize="20dp"
+        android:id="@+id/task_name"
+        android:gravity="right"
+        android:layout_alignParentLeft="true"
+        />
+    <TextView
+        android:id="@+id/task_series"
+        android:text="Center"
+        android:padding="5dp"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textSize="20dp"
+        android:layout_toRightOf="@+id/task_name"/>
+
+        />
+
+</RelativeLayout>
