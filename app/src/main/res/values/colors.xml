@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- color palette -->
+    <color name="PrimaryDarker">#A10202</color>
+    <color name="SecondaryDarker">#A15702</color>
+    <color name="TertiaryDarker">#064766</color>
+    <color name="ComplementDarker">#028102</color>
+
+    <color name="PrimaryDark">#BC0202</color>
+    <color name="SecondaryDark">#BC6602</color>
+    <color name="TertiaryDark">#075377</color>
+    <color name="ComplementDark">#029702</color>
+
+    <color name="Primary">#D40000</color>
+    <color name="Secondary">#D47200</color>
+    <color name="Tertiary">#075D86</color>
+    <color name="Complement">#00AA00</color>
+
+    <color name="PrimaryLight">#F22323</color>
+    <color name="SecondaryLight">#F29223</color>
+    <color name="TertiaryLight">#1C7199</color>
+    <color name="ComplementLight">#1CC21C</color>
+
+    <color name="PrimaryLighter">#F25959</color>
+    <color name="SecondaryLighter">#F2AB59</color>
+    <color name="TertiaryLighter">#3D7B99</color>
+    <color name="ComplementLighter">#47C147</color>
+
+</resources>
