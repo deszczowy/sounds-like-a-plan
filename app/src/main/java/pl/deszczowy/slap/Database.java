@@ -16,7 +16,7 @@ class Database extends SQLiteOpenHelper {
 
     // database settings
     private static final String DATABASE_NAME = "TrackMeOne.db";
-    private static final int DATABASE_VERSION = 2;
+    private static final int DATABASE_VERSION = 3;
 
     // columns
     private static final String META_TABLE_NAME = "_meta";
@@ -198,8 +198,8 @@ class Database extends SQLiteOpenHelper {
 
     // automated queries
     private void autoInitialize(){
-        this.autoMainPattern = "([\\w ]*)\\{([\\w\\d\", ]*)\\}";
-        this.autoSeriesPattern = "\"([\\w\\d ]*)\"";
+        this.autoMainPattern = "([\\S ]*)\\{(.*)\\}";
+        this.autoSeriesPattern = "\"([^\"]*)\"";
     }
 
     private void autoBuildQuery(String item){
