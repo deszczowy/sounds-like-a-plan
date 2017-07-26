@@ -323,7 +323,7 @@ public class Main extends AppCompatActivity
 
         this.fMainProgress = (TextView) findViewById(R.id.TheProgress);
         this.fMainProgress.setText(
-                String.format("done %d of %d", counter.getAdditional(), counter.getMain())
+                String.format("%d of %d to go", counter.getAdditional(), counter.getMain())
         );
     }
 
