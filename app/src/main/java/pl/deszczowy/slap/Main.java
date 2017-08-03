@@ -1,7 +1,5 @@
 package pl.deszczowy.slap;
 
-import android.content.Context;
-import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.support.annotation.NonNull;
 import android.support.design.widget.FloatingActionButton;
@@ -34,18 +32,32 @@ import android.widget.TextView;
 public class Main extends AppCompatActivity
         implements NavigationView.OnNavigationItemSelectedListener {
 
-    private ListView fMainList;
-    private TextView fMainLabel;
-    private TextView fMainProgress;
-    private Preferences fPreferences;
+    //region [ Main activity widgets ]
+    private ListView mainListWidget;
+    private TextView mainLabelWidget;
+    private TextView mainProgressWidget;
+    //endregion
 
+    //region [ Objects ]
+    private Preferences preferences;
     private Database database;
+    //endregion
 
-    private DialogInterface.OnClickListener dialogClickListener;
-    private DialogInterface.OnClickListener deleteItemListener;
-    private ArrayList<Integer> array_ids;
-    private long idToSearch;
-    private int page; // 1 - challenges , 2 - tasks, 3 - starters
+    //region [ Listeners ]
+    private DialogInterface.OnClickListener updateTaskListener;
+    private DialogInterface.OnClickListener deleteTaskListener;
+    private DialogInterface.OnClickListener deleteChallengeListener;
+    //endregion
+
+    //region [ Private fields ]
+
+    // Database record ids of loaded tasks or challenges list.
+    private ArrayList<Integer> ids;
+    // Currently selected item
+    private long id;
+    // Currently visible page, where
+    private ActivePage page;
+    //endregion
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -63,51 +75,65 @@ public class Main extends AppCompatActivity
         NavigationView navigationView = (NavigationView) findViewById(R.id.nav_view);
         navigationView.setNavigationItemSelectedListener(this);
 
-        this.fPreferences = new Preferences(this);
-
-        // builders
-        buildRequiredObjects();
-        buildTheItemsListener();
-        buildMainButtonListener();
-        buildMarkAsDoneListener();
-        buildDeleteTaskListener();
-
-        // loading tasks
-        loadAllTasks();
+        // initialize
+        runBuilders();
+        connectActivity();
+        actionLoadAllTasks();
 
         // items context menu
         registerForContextMenu(findViewById(R.id.TheItems));
     }
 
+    private void connectActivity(){
+        this.mainLabelWidget = (TextView) findViewById(R.id.TheLabel);
+        this.mainProgressWidget = (TextView) findViewById(R.id.TheProgress);
+        this.mainListWidget = (ListView) findViewById(R.id.TheItems);
+    }
+
+    //region [ Objects and Listeners build ]
+    private void runBuilders() {
+        buildRequiredObjects();
+        buildTheItemsListener();
+        buildMainButtonListener();
+        buildMarkAsDoneListener();
+        buildDeleteTaskListener();
+        buildDeleteChallengeListener();
+    }
+
     private void buildRequiredObjects(){
         this.database = new Database(this);
         this.database.currentChallengeRead();
-        this.array_ids = new ArrayList<>();
+        this.ids = new ArrayList<>();
+        this.preferences = new Preferences(this);
+        this.id = -1;
     }
 
     private void buildTheItemsListener(){
-        this.fMainList = (ListView) findViewById(R.id.TheItems);
-        fMainList.setOnItemClickListener(new OnItemClickListener(){
+        this.mainListWidget = (ListView) findViewById(R.id.TheItems);
+        this.mainListWidget.setOnItemClickListener(new OnItemClickListener(){
             @Override
             public void onItemClick(AdapterView<?> arg0, View arg1, int arg2,long arg3) {
 
-                int id = array_ids.get(arg2);
-                if (1 == page) {
-                    Main.this.database.currentChallengeWrite(id);
-                    loadAllTasks();
+                Main.this.id = ids.get(arg2);
+                if (ActivePage.CHALLENGES == page) {
+                    actionEnterChallenge();
+                }
+
+                if (ActivePage.TASKS == page) {
+
                 }
             }
         });
     }
 
     private void buildMarkAsDoneListener(){
-        this.dialogClickListener = new DialogInterface.OnClickListener() {
+        this.updateTaskListener = new DialogInterface.OnClickListener() {
             @Override
             public void onClick(DialogInterface dialog, int which) {
                 switch (which){
                     case DialogInterface.BUTTON_POSITIVE:
-                        Main.this.database.updateTask(idToSearch, 1);
-                        loadAllTasks();
+                        Main.this.database.updateTask(Main.this.id, 1);
+                        actionLoadAllTasks();
                         break;
 
                     case DialogInterface.BUTTON_NEGATIVE:
@@ -118,14 +144,31 @@ public class Main extends AppCompatActivity
         };
     }
 
+    private void buildDeleteChallengeListener(){
+        this.deleteChallengeListener = new DialogInterface.OnClickListener(){
+            @Override
+            public void onClick(DialogInterface dialog, int which){
+                switch (which){
+                    case DialogInterface.BUTTON_POSITIVE:
+                        Main.this.database.deleteChallenge(Main.this.id);
+                        actionLoadAllChallenges();
+                        break;
+                    case DialogInterface.BUTTON_NEGATIVE:
+                        // No button clicked
+                        break;
+                }
+            }
+        };
+    }
+
     private void buildDeleteTaskListener(){
-        deleteItemListener = new DialogInterface.OnClickListener() {
+        this.deleteTaskListener = new DialogInterface.OnClickListener() {
             @Override
             public void onClick(DialogInterface dialog, int which) {
                 switch (which){
                     case DialogInterface.BUTTON_POSITIVE:
-                        Main.this.database.deleteTask(idToSearch);
-                        loadAllTasks();
+                        Main.this.database.deleteTask(Main.this.id);
+                        actionLoadAllTasks();
                         break;
 
                     case DialogInterface.BUTTON_NEGATIVE:
@@ -141,18 +184,20 @@ public class Main extends AppCompatActivity
         myFab.setOnClickListener(
                 new View.OnClickListener() {
                     public void onClick(View v) {
-                        mainButtonClick();
+                        actionMainButtonClick();
                     }
                 }
         );
     }
+    //endregion
 
-    private void mainButtonClick(){
+    //region [ Actions ]
+    private void actionMainButtonClick(){
         switch(this.page){
-            case 1:
+            case CHALLENGES:
                 actionAddChallenge();
                 break;
-            case 2:
+            case TASKS:
                 actionAddTask();
                 break;
         }
@@ -170,8 +215,8 @@ public class Main extends AppCompatActivity
         @Override
         public void onClick(DialogInterface dialog, int which) {
                     String taskName = input.getText().toString();
-                    Main.this.database.insertSubtask(taskName, idToSearch);
-                    loadAllTasks();
+                    Main.this.database.insertSubtask(taskName, Main.this.id);
+                    actionLoadAllTasks();
                 }
         });
         builder.setNegativeButton(R.string.universal_word_cancel, new DialogInterface.OnClickListener() {
@@ -201,7 +246,7 @@ public class Main extends AppCompatActivity
                 public void onClick(DialogInterface dialog, int which) {
                     String taskName = input.getText().toString();
                     Main.this.database.insertTask(taskName);
-                    loadAllTasks();
+                    actionLoadAllTasks();
                 }
             });
             builder.setNegativeButton(R.string.universal_word_cancel, new DialogInterface.OnClickListener() {
@@ -228,7 +273,7 @@ public class Main extends AppCompatActivity
             public void onClick(DialogInterface dialog, int which) {
                 String challengeName = input.getText().toString();
                 Main.this.database.insertChallenge(challengeName);
-                loadAllTasks();
+                actionLoadAllTasks();
             }
         });
         builder.setNegativeButton(R.string.universal_word_cancel, new DialogInterface.OnClickListener() {
@@ -240,24 +285,24 @@ public class Main extends AppCompatActivity
 
         builder.show();
     }
-    private void loadAllChallenges(){
-        this.page = 1;
+    private void actionLoadAllChallenges(){
+        this.page = ActivePage.CHALLENGES;
 
         FloatingActionButton fb = (FloatingActionButton) findViewById(R.id.TheButton);
         fb.setVisibility(View.VISIBLE);
 
-        fMainList = (ListView) findViewById(R.id.TheItems);
+
         Cursor cur = this.database.getAllChallenges();
         cur.moveToFirst();
         ArrayList<String> array_list = new ArrayList<>();
-        array_ids.clear();
+        this.ids.clear();
 
-        fMainLabel = (TextView) findViewById(R.id.TheLabel);
-        fMainLabel.setText(R.string.page_header_challenges);
+
+        setListLabel(R.string.page_header_challenges);
 
         while(!cur.isAfterLast()){
             array_list.add(cur.getString(cur.getColumnIndex(Database.CHALLENGE_COLUMN_NAME)));
-            array_ids.add(cur.getInt(cur.getColumnIndex(Database.CHALLENGE_COLUMN_ID)));
+            this.ids.add(cur.getInt(cur.getColumnIndex(Database.CHALLENGE_COLUMN_ID)));
             cur.moveToNext();
         }
         ArrayAdapter<String> arrayAdapter = new ArrayAdapter<>(
@@ -265,22 +310,23 @@ public class Main extends AppCompatActivity
                 android.R.layout.simple_list_item_1,
                 array_list );
 
-        fMainList.setAdapter(arrayAdapter);
+        this.mainListWidget.setAdapter(arrayAdapter);
+        setProgres(0, 0);
     }
 
 
-    private void loadAllTasks(){
-        this.page = 2;
+    private void actionLoadAllTasks(){
+        this.page = ActivePage.TASKS;
 
         FloatingActionButton fb = (FloatingActionButton) findViewById(R.id.TheButton);
         fb.setVisibility(View.VISIBLE);
 
-        fMainList = (ListView) findViewById(R.id.TheItems);
+
         Cursor cur = this.database.getAllTasks();
 
         cur.moveToFirst();
         ArrayList<ItemTask> array_list = new ArrayList<>();
-        array_ids.clear();
+        this.ids.clear();
 
         setListLabel();
 
@@ -308,43 +354,41 @@ public class Main extends AppCompatActivity
                                 tstate, tname, tseries, 1 == counter.getAdditional()
                         )
                 );
-                array_ids.add(tid);
+                this.ids.add(tid);
             }
             cur.moveToNext();
         }
         ItemTaskAdapter itemTaskAdapter = new ItemTaskAdapter(this, array_list);
-        fMainList.setAdapter(itemTaskAdapter);
+        this.mainListWidget.setAdapter(itemTaskAdapter);
 
-        if (this.fPreferences.getPreference(
+        if (this.preferences.getPreference(
                 R.string.option_start_from_current_task_name,
                 R.bool.option_start_from_current_task_default
         ))
-            fMainList.setSelection(scroll_to);
+            this.mainListWidget.setSelection(scroll_to);
 
-        this.fMainProgress = (TextView) findViewById(R.id.TheProgress);
-        this.fMainProgress.setText(
-                String.format("%d of %d to go", counter.getAdditional(), counter.getMain())
-        );
+
+        setProgres(counter.getAdditional(), counter.getMain());
     }
 
-    private void loadAllStarters(){
-        this.page = 3;
+    private void actionLoadAllStarters(){
+        this.page = ActivePage.STARTERS;
 
         FloatingActionButton fb = (FloatingActionButton) findViewById(R.id.TheButton);
         fb.setVisibility(View.INVISIBLE);
 
-        fMainList = (ListView) findViewById(R.id.TheItems);
+        this.mainListWidget = (ListView) findViewById(R.id.TheItems);
         Cursor cur = this.database.getAllStarters();
         cur.moveToFirst();
         ArrayList<String> array_list = new ArrayList<>();
-        array_ids.clear();
+        this.ids.clear();
 
-        fMainLabel = (TextView) findViewById(R.id.TheLabel);
-        fMainLabel.setText(R.string.page_header_starters);
+
+        setListLabel(R.string.page_header_starters);
 
         while(!cur.isAfterLast()){
             array_list.add(cur.getString(cur.getColumnIndex(Database.STARTERS_COLUMN_NAME)));
-            array_ids.add(cur.getInt(cur.getColumnIndex(Database.STARTERS_COLUMN_ID)));
+            this.ids.add(cur.getInt(cur.getColumnIndex(Database.STARTERS_COLUMN_ID)));
             cur.moveToNext();
         }
         ArrayAdapter<String> arrayAdapter = new ArrayAdapter<>(
@@ -352,58 +396,100 @@ public class Main extends AppCompatActivity
                 android.R.layout.simple_list_item_1,
                 array_list );
 
-        fMainList.setAdapter(arrayAdapter);
+        this.mainListWidget.setAdapter(arrayAdapter);
+        setProgres(0, 0);
     }
 
+    private void actionMarkAsDone() {
+        Cursor rs = this.database.getData(this.id);
+        rs.moveToFirst();
+
+        AlertDialog.Builder builder = new AlertDialog.Builder(Main.this);
+        builder
+                .setMessage(R.string.question_mark_task_done + rs.getString(rs.getColumnIndex(Database.TASK_COLUMN_NAME)) + "?")
+                .setPositiveButton(R.string.universal_word_yes, this.updateTaskListener)
+                .setNegativeButton(R.string.universal_word_no, this.updateTaskListener)
+                .show();
+    }
+
+    private void actionDeleteChallenge() {
+        AlertDialog.Builder builder = new AlertDialog.Builder(Main.this);
+        builder
+                .setMessage(R.string.question_delete_challenge)
+                .setPositiveButton(R.string.universal_word_yes, this.deleteChallengeListener)
+                .setNegativeButton(R.string.universal_word_no, this.deleteChallengeListener)
+                .show();
+    }
+
+    private void actionDeleteTask() {
+        Cursor rs = this.database.getData(this.id);
+        rs.moveToFirst();
+        AlertDialog.Builder builder = new AlertDialog.Builder(Main.this);
+        builder.setMessage(R.string.question_delete_task + rs.getString(rs.getColumnIndex(Database.TASK_COLUMN_NAME)) + "?");
+        builder.setPositiveButton(R.string.universal_word_yes, this.deleteTaskListener);
+        builder.setNegativeButton(R.string.universal_word_no, this.deleteTaskListener);
+        builder.show();
+    }
+
+    private void actionLoadStarter() {
+        Decoder decoder = new Decoder("");
+        try {
+            decoder.decode(this.database.getStarter(this.id));
+            this.database.autoLoad(decoder.get());
+            actionLoadAllChallenges();
+        } catch (IOException e) {}
+    }
+
+    private void actionStartFromTask() {
+        this.database.startFromTask(this.id);
+        actionLoadAllTasks();
+    }
+
+    private void actionEnterChallenge() {
+        this.database.currentChallengeWrite(this.id);
+        actionLoadAllTasks();
+    }
+    //endregion
+
+    //region [ Controls interaction ]
     private void setListLabel(){
-        fMainLabel = (TextView) findViewById(R.id.TheLabel);
-        fMainLabel.setText(this.database.currentChallengeName());
+        this.mainLabelWidget.setText(this.database.currentChallengeName());
     }
 
+    private void setListLabel(int resourceId){
+        this.mainLabelWidget.setText(resourceId);
+    }
+
+    private void setProgres(int done, int all){
+        if (all > 0){
+            int remaining = all - done;
+            int percent = Math.round(done * 100 / all);
+
+            this.mainProgressWidget.setText(
+                    String.format("done %d of %d (%d%)", remaining, all, percent)
+            );
+        } else {
+            this.mainProgressWidget.setText("");
+        }
+
+    }
+    //endregion
+
+    //region [ Main list context menu ]
     @Override
     public boolean onContextItemSelected(MenuItem item) {
         AdapterView.AdapterContextMenuInfo info = (AdapterView.AdapterContextMenuInfo)item.getMenuInfo();
         int menuItemIndex = item.getItemId();
-        this.idToSearch = array_ids.get(info.position);
-
-        Cursor rs = this.database.getData(this.idToSearch);
-        rs.moveToFirst();
-
-        AlertDialog.Builder builder = new AlertDialog.Builder(Main.this);
+        this.id = this.ids.get(info.position);
 
         switch (menuItemIndex){
-            case 11:
-                break;
-            case 12:
-                break;
-            case 21: // new subtask
-                actionAddSubtask();
-                break;
-            case 22: // done
-                builder
-                        .setMessage(R.string.question_mark_task_done + rs.getString(rs.getColumnIndex(Database.TASK_COLUMN_NAME)) + "?")
-                        .setPositiveButton(R.string.universal_word_yes, dialogClickListener)
-                        .setNegativeButton(R.string.universal_word_no, dialogClickListener)
-                        .show();
-                break;
-            case 23: // delete
-                builder.setMessage(R.string.question_delete_task + rs.getString(rs.getColumnIndex(Database.TASK_COLUMN_NAME)) + "?");
-                builder.setPositiveButton(R.string.universal_word_yes, deleteItemListener);
-                builder.setNegativeButton(R.string.universal_word_no, deleteItemListener);
-                        builder.show();
-                break;
-            case 24: // start from task
-                this.database.startFromTask(this.idToSearch);
-                loadAllTasks();
-                break;
-            case 31:
-                Decoder decoder = new Decoder("");
-                try {
-                    decoder.decode(this.database.getStarter(this.idToSearch));
-                    this.database.autoLoad(decoder.get());
-                    loadAllChallenges();
-                } catch (IOException e) {}
-                break;
+            case 11: break;
+            case 12: actionDeleteChallenge(); break;
+            case 21: actionAddSubtask(); break;
+            case 22: actionMarkAsDone(); break;
+            case 23: actionDeleteTask(); break;
+            case 24: actionStartFromTask(); break;
+            case 31: actionLoadStarter(); break;
         }
         return true;
     }
@@ -413,19 +499,22 @@ public class Main extends AppCompatActivity
                                     ContextMenu.ContextMenuInfo menuInfo) {
         if (v.getId()==R.id.TheItems) {
             menu.setHeaderTitle(R.string.context_menu_title);
-            if (1 == this.page){
+            if (ActivePage.CHALLENGES == this.page){
                 menu.add(Menu.NONE, 11, 1, R.string.challenge_context_menu_add_challenge);
                 menu.add(Menu.NONE, 12, 2, R.string.challenge_context_menu_delete_challenge);
-            } else if (2 == this.page) {
+            } else if (ActivePage.TASKS == this.page) {
                 menu.add(Menu.NONE, 21, 1, R.string.task_context_menu_add_task_element);
                 menu.add(Menu.NONE, 22, 2, R.string.task_context_menu_mark_as_done);
                 menu.add(Menu.NONE, 23, 3, R.string.task_context_menu_delete_task);
                 menu.add(Menu.NONE, 24, 4, R.string.task_context_menu_start_in_point);
-            } else if (3 == this.page) {
+            } else if (ActivePage.STARTERS == this.page) {
                 menu.add(Menu.NONE, 31, 1, R.string.starters_context_menu_load);
             }
         }
     }
+    //endregion
+
+    //region [ Drawer ]
     @Override
     public void onBackPressed() {
         DrawerLayout drawer = (DrawerLayout) findViewById(R.id.drawer_layout);
@@ -443,19 +532,22 @@ public class Main extends AppCompatActivity
         int id = item.getItemId();
 
         if (id == R.id.nav_challenge) {
-            loadAllChallenges();
+            actionLoadAllChallenges();
         } else if (id == R.id.nav_starters){
-            loadAllStarters();
+            actionLoadAllStarters();
         } else if (id == R.id.nav_manage) {
             Intent intent = new Intent(getApplicationContext(),Settings.class);
             startActivity(intent);
         } else if (id == R.id.nav_info) {
             Intent intent = new Intent(getApplicationContext(),About.class);
             startActivity(intent);
+        } else if (id == R.id.nav_debug) {
+            this.database.logDb();
         }
 
         DrawerLayout drawer = (DrawerLayout) findViewById(R.id.drawer_layout);
         drawer.closeDrawer(GravityCompat.START);
         return true;
     }
+    //endregion
 }

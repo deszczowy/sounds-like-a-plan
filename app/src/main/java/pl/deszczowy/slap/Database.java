@@ -8,14 +8,17 @@ import android.database.DatabaseUtils;
 import android.database.sqlite.SQLiteOpenHelper;
 import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteStatement;
+import android.provider.ContactsContract;
+import android.util.Log;
 
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 class Database extends SQLiteOpenHelper {
 
+    private static final String TAG = "SLAP_DB";
     // database settings
-    private static final String DATABASE_NAME = "TrackMeOne.db";
+    private static final String DATABASE_NAME = "SlapData.db";
     private static final int DATABASE_VERSION = 3;
 
     // columns
@@ -56,6 +59,11 @@ class Database extends SQLiteOpenHelper {
     private static final String QUERY_CURRENT_CHALLENGE = "SELECT idChallenge, name FROM _challenge WHERE idChallenge = (SELECT idChallenge FROM _meta WHERE idMeta = 1)";
     private static final String QUERY_START_FROM_TASK = "UPDATE _task SET state = (case when idTask < ? then 1 else 0 end) WHERE idChallenge = (SELECT idChallenge FROM _meta WHERE idMeta = 1)";
 
+    private static final String QUERY_DELETE_CHALLENGE_STEP01 = "DELETE FROM _subtask WHERE idTask IN (SELECT idTask FROM _task WHERE idChallenge = ?)";
+    private static final String QUERY_DELETE_CHALLENGE_STEP02 = "DELETE FROM _task WHERE idChallenge = ?";
+    private static final String QUERY_DELETE_CHALLENGE_STEP03 = "DELETE FROM _challenge WHERE idChallenge = ?";
+
+
 
     // automated queries
     private ArrayList<QueryCommand> autoQueries;
@@ -69,6 +77,29 @@ class Database extends SQLiteOpenHelper {
     Database(Context context) {
         super(context, DATABASE_NAME , null, DATABASE_VERSION);
         this.autoQueries = new ArrayList<>();
+    }
+
+    private void logTable(String name, String idc, String namec, String sql){
+        SQLiteDatabase db = this.getReadableDatabase();
+        String line = "";
+        Cursor c = db.rawQuery(sql, null);
+        c.moveToFirst();
+        Log.v(Database.TAG, name);
+        while(!c.isAfterLast()){
+            line = "\t";
+            line += c.getString(c.getColumnIndex(idc)) + "\t";
+            line += c.getString(c.getColumnIndex(namec)) + "\t";
+            Log.v(Database.TAG, line);
+            c.moveToNext();
+        }
+    }
+
+    void logDb(){
+        Log.v(Database.TAG, Database.DATABASE_NAME);
+        logTable(Database.CHALLENGE_COLUMN_NAME, Database.CHALLENGE_COLUMN_ID, Database.CHALLENGE_COLUMN_NAME, "SELECT * FROM _challenge");
+        logTable(Database.TASK_TABLE_NAME, Database.TASK_COLUMN_ID, Database.TASK_COLUMN_NAME, "SELECT * FROM _task");
+        logTable(Database.SUBTASK_TABLE_NAME, Database.SUBTASK_COLUMN_ID, Database.SUBTASK_COLUMN_NAME, "SELECT * FROM _subtask");
+        logTable("_starter", Database.STARTERS_COLUMN_ID, Database.STARTERS_COLUMN_NAME, "SELECT * FROM _starter");
     }
 
     void currentChallengeRead(){
@@ -87,7 +118,7 @@ class Database extends SQLiteOpenHelper {
         c.close();
     }
 
-    void currentChallengeWrite(int challenge){
+    void currentChallengeWrite(long challenge){
         SQLiteDatabase db = this.getWritableDatabase();
         ContentValues contentValues = new ContentValues();
         contentValues.put(META_CHALLENGE_ID, challenge);
@@ -178,6 +209,36 @@ class Database extends SQLiteOpenHelper {
         return db.delete(TASK_TABLE_NAME, "idTask = ? ", new String[] { Long.toString(id) });
     }
 
+    Integer deleteChallenge(Long id){
+
+        Integer result = 0;
+
+        SQLiteDatabase db = this.getWritableDatabase();
+        db.beginTransaction();
+
+        if (db != null) {
+            try {
+                SQLiteStatement stmt = db.compileStatement(QUERY_DELETE_CHALLENGE_STEP01);
+                stmt.bindLong(1, id);
+                stmt.execute();
+
+                stmt = db.compileStatement(QUERY_DELETE_CHALLENGE_STEP02);
+                stmt.bindLong(1, id);
+                stmt.execute();
+
+                stmt = db.compileStatement(QUERY_DELETE_CHALLENGE_STEP03);
+                stmt.bindLong(1, id);
+                stmt.execute();
+
+                result = 1;
+                db.setTransactionSuccessful();
+            } finally {
+                db.endTransaction();
+            }
+        }
+        return result;
+    }
+
     Cursor getAllTasks() {
         SQLiteDatabase db = this.getReadableDatabase();
         return db.rawQuery(
@@ -200,6 +261,7 @@ class Database extends SQLiteOpenHelper {
     private void autoInitialize(){
         this.autoMainPattern = "([\\S ]*)\\{(.*)\\}";
         this.autoSeriesPattern = "\"([^\"]*)\"";
+        this.autoQueries.clear();
     }
 
     private void autoBuildQuery(String item){
@@ -279,7 +341,6 @@ class Database extends SQLiteOpenHelper {
 
                 // some entry did not pass
                 if (!go) {
-                    db.endTransaction();
                     break;
                 }
             }
@@ -291,7 +352,7 @@ class Database extends SQLiteOpenHelper {
                 this.currentChallenge = challenge;
             }
         }
-
+        db.endTransaction();
         //
         return go;
     }

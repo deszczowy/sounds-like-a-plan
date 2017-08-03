@@ -24,4 +24,6 @@ class Counter {
     int getAdditional(){
         return this.additional;
     }
+
+    int getRemaining() { return this.main - this.additional; }
 }
